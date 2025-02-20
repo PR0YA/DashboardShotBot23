@@ -8,7 +8,7 @@ class ScreenshotService:
     def __init__(self):
         self.cache = {}
 
-    async def get_screenshot(self):
+    async def get_screenshot(self, format='jpeg'):
         try:
             if not APIFLASH_KEY:
                 raise ValueError("APIFlash key is not configured")
@@ -16,7 +16,7 @@ class ScreenshotService:
             # Формируем URL с правильным gid
             spreadsheet_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit?gid=2045841507#gid=2045841507"
 
-            logger.info(f"Getting screenshot for spreadsheet")
+            logger.info(f"Getting screenshot for spreadsheet in {format.upper()} format")
             logger.info(f"Using spreadsheet URL: {spreadsheet_url}")
 
             # Кодируем URL Google Sheets
@@ -28,11 +28,12 @@ class ScreenshotService:
                 'url': encoded_url,
                 'width': '2440',
                 'height': '2000',
-                'full_page': 'true'
+                'full_page': 'true',
+                'format': format
             }
 
             try:
-                logger.info("Sending request to APIFlash")
+                logger.info(f"Sending request to APIFlash for {format.upper()} format with parameters: {str({k: v for k, v in params.items() if k != 'access_key'})}")
 
                 async with aiohttp.ClientSession() as session:
                     # Формируем полный URL с параметрами
@@ -51,7 +52,7 @@ class ScreenshotService:
                             logger.error(f"Response headers: {response.headers}")
                             raise Exception(f"Failed to get screenshot: {response.status}, Details: {error_text}")
 
-                        logger.info("Successfully received screenshot from APIFlash")
+                        logger.info(f"Successfully received {format.upper()} screenshot from APIFlash")
                         screenshot_data = await response.read()
                         return screenshot_data
 
