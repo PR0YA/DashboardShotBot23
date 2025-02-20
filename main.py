@@ -206,7 +206,13 @@ class DashboardBot:
 
             # Add error handler
             async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-                logger.error(f"Exception while handling an update: {context.error}")
+                error = context.error
+                logger.error(f"Exception while handling an update: {error}")
+                
+                if "Conflict: terminated by other getUpdates request" in str(error):
+                    logger.error("Обнаружен конфликт: несколько экземпляров бота запущены одновременно")
+                    return
+                
                 if update and isinstance(update, Update) and update.effective_message:
                     await update.effective_message.reply_text(
                         "Произошла ошибка при обработке запроса. Попробуйте позже."
