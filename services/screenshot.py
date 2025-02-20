@@ -9,8 +9,25 @@ class ScreenshotService:
     def __init__(self):
         self.cache = {}
         self.image_enhancer = ImageEnhancer()
+        self.default_presets = {
+            'default': {'clipLimit': 0.8, 'sharpness': 3.4},
+            'high_contrast': {'clipLimit': 1.2, 'sharpness': 3.8},
+            'text_optimal': {'clipLimit': 0.6, 'sharpness': 4.0},
+            'chart_optimal': {'clipLimit': 1.0, 'sharpness': 3.0}
+        }
 
-    async def get_screenshot(self, format='jpeg', enhance=False):
+    async def get_screenshot(self, format='jpeg', enhance=False, zoom=100, 
+                           area=None, preset='default'):
+        """
+        Get a screenshot with specified parameters
+
+        Args:
+            format (str): Output format (jpeg, png, webp)
+            enhance (bool): Whether to apply image enhancement
+            zoom (int): Zoom level (50-200)
+            area (dict): Area to capture {x, y, width, height} or None for full page
+            preset (str): Enhancement preset name
+        """
         try:
             if not APIFLASH_KEY:
                 raise ValueError("APIFlash key is not configured")
@@ -28,15 +45,28 @@ class ScreenshotService:
             params = {
                 'access_key': APIFLASH_KEY,
                 'url': encoded_url,
-                'width': '2440',
-                'height': '2000',
-                'full_page': 'true',
                 'format': format,
-                'quality': '100'  # Установка максимального качества
+                'quality': '100',  # Максимальное качество
+                'full_page': 'true' if not area else 'false',
+                'zoom': str(zoom)
             }
 
+            # Добавляем параметры области, если указаны
+            if area:
+                params.update({
+                    'x': str(area['x']),
+                    'y': str(area['y']),
+                    'width': str(area['width']),
+                    'height': str(area['height'])
+                })
+            else:
+                params.update({
+                    'width': '2440',
+                    'height': '2000'
+                })
+
             try:
-                logger.info(f"Sending request to APIFlash for {format.upper()} format with parameters: {str({k: v for k, v in params.items() if k != 'access_key'})}")
+                logger.info(f"Sending request to APIFlash with parameters: {str({k: v for k, v in params.items() if k != 'access_key'})}")
 
                 async with aiohttp.ClientSession() as session:
                     # Формируем полный URL с параметрами
@@ -58,11 +88,16 @@ class ScreenshotService:
                         logger.info(f"Successfully received {format.upper()} screenshot from APIFlash")
                         screenshot_data = await response.read()
 
-                        # Apply AI enhancement if requested
+                        # Apply enhancement if requested
                         if enhance:
-                            logger.info("Applying AI enhancement to the screenshot")
-                            screenshot_data = self.image_enhancer.enhance_screenshot(screenshot_data)
-                            logger.info("AI enhancement completed")
+                            logger.info(f"Applying enhancement preset: {preset}")
+                            preset_params = self.default_presets.get(preset, self.default_presets['default'])
+                            screenshot_data = self.image_enhancer.enhance_screenshot(
+                                screenshot_data, 
+                                preset_params['clipLimit'],
+                                preset_params['sharpness']
+                            )
+                            logger.info("Enhancement completed")
 
                         return screenshot_data
 
@@ -73,3 +108,7 @@ class ScreenshotService:
         except Exception as e:
             logger.error(f"Screenshot service error: {str(e)}")
             raise
+
+    def get_available_presets(self):
+        """Returns list of available enhancement presets"""
+        return list(self.default_presets.keys())
