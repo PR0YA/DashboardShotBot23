@@ -15,7 +15,8 @@ class DashboardBot:
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
-            ['/screen jpeg', '/screen png', '/screen webp']
+            ['/screen jpeg', '/screen png', '/screen webp'],
+            ['/screen jpeg enhance', '/screen png enhance', '/screen webp enhance']
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -24,14 +25,26 @@ class DashboardBot:
             "Используйте команду /screen с указанием формата:\n"
             "/screen jpeg - для JPEG формата\n"
             "/screen png - для PNG формата\n"
-            "/screen webp - для WebP формата",
+            "/screen webp - для WebP формата\n\n"
+            "Добавьте 'enhance' для применения AI-улучшения:\n"
+            "/screen jpeg enhance - для улучшенного JPEG\n"
+            "/screen png enhance - для улучшенного PNG\n"
+            "/screen webp enhance - для улучшенного WebP",
             reply_markup=reply_markup
         )
 
     async def screen(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
-            # Получаем формат из аргументов команды
-            format_arg = context.args[0].lower() if context.args else 'jpeg'
+            # Проверяем аргументы команды
+            if not context.args:
+                await update.message.reply_text(
+                    "Пожалуйста, укажите формат: /screen [jpeg|png|webp] [enhance]"
+                )
+                return
+
+            # Получаем формат и проверяем наличие enhance
+            format_arg = context.args[0].lower()
+            enhance = len(context.args) > 1 and context.args[1].lower() == 'enhance'
 
             # Проверяем валидность формата
             if format_arg not in ['jpeg', 'png', 'webp']:
@@ -41,17 +54,19 @@ class DashboardBot:
                 return
 
             # Отправляем начальное сообщение
+            enhancement_text = " с AI-улучшением" if enhance else ""
             status_message = await update.message.reply_text(
-                f"Получаю скриншот в формате {format_arg.upper()}... Пожалуйста, подождите."
+                f"Получаю скриншот в формате {format_arg.upper()}{enhancement_text}... Пожалуйста, подождите."
             )
 
-            # Получаем скриншот в указанном формате
-            screenshot_data = await self.screenshot_service.get_screenshot(format_arg)
+            # Получаем скриншот
+            screenshot_data = await self.screenshot_service.get_screenshot(format_arg, enhance)
 
             # Отправляем скриншот
+            enhancement_caption = " (AI-улучшенный)" if enhance else ""
             await update.message.reply_photo(
                 photo=io.BytesIO(screenshot_data),
-                caption=f"Скриншот диаграмм в формате {format_arg.upper()}"
+                caption=f"Скриншот диаграмм в формате {format_arg.upper()}{enhancement_caption}"
             )
 
             # Удаляем статусное сообщение
@@ -59,7 +74,7 @@ class DashboardBot:
 
         except IndexError:
             await update.message.reply_text(
-                "Пожалуйста, укажите формат: /screen [jpeg|png|webp]"
+                "Пожалуйста, укажите формат: /screen [jpeg|png|webp] [enhance]"
             )
         except Exception as e:
             error_message = f"Произошла ошибка: {str(e)}"

@@ -17,4 +17,7 @@ dependencies = [
     "sendgrid>=6.11.0",
     "twilio>=9.4.5",
     "trafilatura>=2.0.0",
+    "opencv-python-headless>=4.11.0.86",
+    "numpy>=2.2.3",
+    "pillow>=11.1.0",
 ]

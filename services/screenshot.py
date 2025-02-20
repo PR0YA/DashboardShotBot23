@@ -3,12 +3,14 @@ import asyncio
 from config import APIFLASH_KEY, APIFLASH_URL, SPREADSHEET_ID
 from utils.logger import logger
 from urllib.parse import quote
+from services.image_enhancer import ImageEnhancer
 
 class ScreenshotService:
     def __init__(self):
         self.cache = {}
+        self.image_enhancer = ImageEnhancer()
 
-    async def get_screenshot(self, format='jpeg'):
+    async def get_screenshot(self, format='jpeg', enhance=False):
         try:
             if not APIFLASH_KEY:
                 raise ValueError("APIFlash key is not configured")
@@ -22,7 +24,7 @@ class ScreenshotService:
             # Кодируем URL Google Sheets
             encoded_url = quote(spreadsheet_url)
 
-            # Базовые параметры запроса точно как в рабочем примере
+            # Базовые параметры запроса
             params = {
                 'access_key': APIFLASH_KEY,
                 'url': encoded_url,
@@ -54,6 +56,13 @@ class ScreenshotService:
 
                         logger.info(f"Successfully received {format.upper()} screenshot from APIFlash")
                         screenshot_data = await response.read()
+
+                        # Apply AI enhancement if requested
+                        if enhance:
+                            logger.info("Applying AI enhancement to the screenshot")
+                            screenshot_data = self.image_enhancer.enhance_screenshot(screenshot_data)
+                            logger.info("AI enhancement completed")
+
                         return screenshot_data
 
             except Exception as e:
