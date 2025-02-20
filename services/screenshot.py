@@ -16,20 +16,27 @@ class ScreenshotService:
             if (asyncio.get_event_loop().time() - timestamp) < 300:  # 5 minutes cache
                 return screenshot
 
-        spreadsheet_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit#gid=2045841507"
+        spreadsheet_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit"
 
         logger.info(f"Getting screenshot for rows {start_row} to {end_row}")
+        logger.info(f"Using spreadsheet URL: {spreadsheet_url}")
+
+        # Calculate height based on number of rows (assuming ~24px per row)
+        row_count = end_row - start_row + 1
+        height = max(2000, row_count * 24 + 200)  # Add padding for headers and margins
 
         params = {
-            'key': PAGEPIXELS_KEY,
+            'apikey': PAGEPIXELS_KEY,
             'url': spreadsheet_url,
-            'width': 2440,
-            'height': 2000,
-            'format': 'jpg',
-            'quality': 100,
-            'wait_for': '.grid-container',  # Wait for Google Sheets grid to load
+            'width': str(2440),
+            'height': str(height),
+            'format': 'jpeg',
+            'quality': '100',
+            'delay': '5',
+            'selector': '.grid-container',
+            'full_page': 'false',
             'scroll_to': f'A{start_row}',
-            'inject_css': '''
+            'css_inject': '''
                 body { overflow: visible !important; }
                 .grid-container, .waffle {
                     visibility: visible !important;
@@ -39,20 +46,21 @@ class ScreenshotService:
                     visibility: visible !important;
                     opacity: 1 !important;
                 }
-            ''',
-            'wait_time': 5000,  # Wait 5 seconds for content to load
-            'block_resources': ['analytics', 'advertising'],  # Block unnecessary resources
-            'cache_ttl': 0  # Disable caching on PagePixels side
+            '''
         }
 
         try:
             logger.info("Sending request to PagePixels")
+            logger.debug(f"Request parameters: {params}")
+
             async with aiohttp.ClientSession() as session:
                 async with session.get(PAGEPIXELS_URL, params=params) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         logger.error(f"PagePixels error: {error_text}")
-                        raise Exception(f"Failed to get screenshot: {response.status}")
+                        logger.error(f"Response status: {response.status}")
+                        logger.error(f"Response headers: {response.headers}")
+                        raise Exception(f"Failed to get screenshot: {response.status}, Details: {error_text}")
 
                     logger.info("Successfully received screenshot from PagePixels")
                     screenshot_data = await response.read()

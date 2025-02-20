@@ -15,4 +15,5 @@ dependencies = [
     "flask-wtf>=1.2.2",
     "oauthlib>=3.2.2",
     "sendgrid>=6.11.0",
+    "twilio>=9.4.5",
 ]
