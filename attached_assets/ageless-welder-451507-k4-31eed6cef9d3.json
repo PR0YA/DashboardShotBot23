@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "ageless-welder-451507-k4",
+  "private_key_id": "31eed6cef9d3c0dc2c021da8d9509851acfc1ca3",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC99JlcxjFKuseU\nZ5hI3QVSDJU2Ipc3+tHGFqIy2yXaWrjRRchbyVKhP2x6FkEUlDQ6yImmlJ7DhZHt\nRN9ISeEyOL1dfA77i+mOPG+T3Dx9I5hNtSXrIHkVeZ+SwVBNaRGsg8I9ePvjudC0\nWHfTrvdMoopNoMw0fx1do3NLsdQR+yDbxaHIG/IdYtwCcUSlWEX6qbGhtxnkWc+L\n8fnk8RZsEjzImNHdj7/+85NvkDeFOTtP7a/FvLUEDC/nIehXkDC+rqiHShdG6mtO\nCoyWQqfuG0evNVKyIUzOk6TFuJp0dZVry2cj/BHky/2FZBTPscOhi7gqo/mbxPN5\n3vCW3Bv1AgMBAAECggEAIyAjqtzoWQQEa1wjtBeQyA0VG2tWkK60Ez/0sthE3eWI\nRwRzKgvmmHQwtDvAwZQtO1CBabkSSZ/9rcUeT9D/kEifNbX+1EOZRujEjjA7zD0k\niPwOHLZGxbKVkC7okUP0VXUQ2kqws3nVDsBMOivgxX5J+lRZZny5+qqCo7TovQEj\n8NqsuwsR5pesepWjDv7He/Wl/XqS43LtMRRNjpLT8xIFq1wbh8fuqusUILLhjV5M\nSXlSDsUxI35C7auxJmdKEcZUfEP3yNUiou5Bq2bYWA9c5+iVC/NvKC0T5knyLjCa\nmrxWEY8k4Tu7SFAePkVuBvBWVAOaNGDX4bo9z1rpsQKBgQDy4s1JEqiMmPUhWSPR\noQIDqt66pVsAzPSv0LV+k+ywpPizrhcL/KBz0CFzjYMPgx3y6X1fDzZe5PbxtnVb\nhne6B9fw5Zj3gZU+L+Ikk4jMyu7H1fKWjsPK4ymCOdVqFp4OdvV0wEY6kFUjndXZ\nhpCz8gAXQRx5Ps+IJUhkeTMcJQKBgQDINi+UV+U/Qf28ud9BtcYbeDoqA5v8Z3Rn\nhwcWUY2RUoPwVyd5ZoflMHVAKQzJXbsnSDZ/V8r599NaRrxdieGvCRaaK/j0yYBN\nWMeua3smDSnJIN3zrbFbq/Z7ruYhkkhAMCjGJvPOJLnuWLsoD0LCPzGHH2McNpiP\n26zhVEcPkQKBgQCjTDU08eR8UsJMX4AjipquGI2S82WRzjqckjfUGGREB0Zml59L\nIdhGxSIYbIY3QbI7BRyTcsjdWBdnP4L7vBZ27psSjWsgzPCoVM04RjDtb2rG1GM7\nMlUU7VGVCokfwIEXvIcerb8J1MxJG+8RRtW3BfdlqxMXuVESee6IDqx8OQKBgQCs\nEc3gm44eSNQPUFwteFFUKIcstr9oNW3Y0DbqGpsmC5nzhKQbdWBUPMp4ow8nPVRt\nFWYpGcYMAc925hZb+fWp3pC7XhFwKIIJd8TeBefoMyX3gzTeiihFFk0XzaBht/w6\nlmlkq/Ob9vqJe18Wtc71bSRe8j3W8KE7+lvhqPIN0QKBgFh+Be8p8nN3CGUgRkDJ\nRc6k2xmfVM4DAReEsXM2mAiRjzSFVLUZQoUvxP1B0aVLJnZr45EDud5Y1KhnYRyS\nbJXnXtpTXfxMSdWD/Gy2sO2TGNT0DBeEcFNQ8wfNsKRtgJiZzMseYuxnVXGIKDeJ\nW+pRTFiHHLKbFhE8KJAGFTXN\n-----END PRIVATE KEY-----\n",
+  "client_email": "dashboard-sj@ageless-welder-451507-k4.iam.gserviceaccount.com",
+  "client_id": "114894797221598597850",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/dashboard-sj%40ageless-welder-451507-k4.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

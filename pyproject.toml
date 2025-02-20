@@ -1,0 +1,17 @@
+[project]
+name = "repl-nix-workspace"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.11"
+dependencies = [
+    "aiohttp>=3.11.12",
+    "google-api-python-client>=2.161.0",
+    "google-auth-oauthlib>=1.2.1",
+    "google-auth>=2.38.0",
+    "python-telegram-bot==20.0",
+    "telegram>=0.0.1",
+    "google-auth-httplib2>=0.2.0",
+    "flask-login>=0.6.3",
+    "flask-wtf>=1.2.2",
+    "oauthlib>=3.2.2",
+]
