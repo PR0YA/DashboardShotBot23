@@ -31,7 +31,8 @@ class ScreenshotService:
                 'width': '2440',
                 'height': '2000',
                 'full_page': 'true',
-                'format': format
+                'format': format,
+                'quality': '100'  # Установка максимального качества
             }
 
             try:

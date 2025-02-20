@@ -1,6 +1,6 @@
 import asyncio
-from telegram.ext import Application, CommandHandler, CallbackContext
-from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackContext, CallbackQueryHandler
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 from config import TELEGRAM_TOKEN
 from services.google_sheets import GoogleSheetsService
@@ -14,81 +14,92 @@ class DashboardBot:
         self.screenshot_service = ScreenshotService()
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Отправляет стартовое сообщение с меню"""
+        # Создаем inline-клавиатуру
         keyboard = [
-            ['/screen jpeg', '/screen png', '/screen webp'],
-            ['/screen jpeg enhance', '/screen png enhance', '/screen webp enhance']
+            [
+                InlineKeyboardButton("📸 PNG", callback_data="png"),
+                InlineKeyboardButton("🖼 JPEG", callback_data="jpeg"),
+                InlineKeyboardButton("🌅 WebP", callback_data="webp")
+            ],
+            [
+                InlineKeyboardButton("✨ PNG с улучшением", callback_data="png_enhance"),
+                InlineKeyboardButton("✨ JPEG с улучшением", callback_data="jpeg_enhance"),
+                InlineKeyboardButton("✨ WebP с улучшением", callback_data="webp_enhance")
+            ]
         ]
-        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        welcome_text = """
+🤖 *Добро пожаловать в DashboardSJ Bot\!*
+
+Этот бот поможет вам создавать качественные скриншоты Google Sheets\.
+
+*Доступные форматы:*
+• PNG \- для максимального качества
+• JPEG \- для оптимального размера
+• WebP \- современный формат
+
+*Варианты улучшения:*
+• Обычный скриншот \- точная копия
+• С улучшением \- оптимизированное качество
+
+Выберите нужный формат из меню ниже 👇
+"""
 
         await update.message.reply_text(
-            "Добро пожаловать в DashboardSJ Bot!\n"
-            "Используйте команду /screen с указанием формата:\n"
-            "/screen jpeg - для JPEG формата\n"
-            "/screen png - для PNG формата\n"
-            "/screen webp - для WebP формата\n\n"
-            "Добавьте 'enhance' для применения AI-улучшения:\n"
-            "/screen jpeg enhance - для улучшенного JPEG\n"
-            "/screen png enhance - для улучшенного PNG\n"
-            "/screen webp enhance - для улучшенного WebP",
-            reply_markup=reply_markup
+            welcome_text,
+            reply_markup=reply_markup,
+            parse_mode='MarkdownV2'
         )
 
-    async def screen(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def button_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик нажатий на кнопки"""
+        query = update.callback_query
+        await query.answer()
+
+        # Разбираем callback_data
+        format_data = query.data.split('_')
+        format_type = format_data[0]
+        enhance = len(format_data) > 1 and format_data[1] == 'enhance'
+
+        # Отправляем статусное сообщение
+        enhancement_text = " с улучшением" if enhance else ""
+        status_message = await query.message.reply_text(
+            f"📸 Создаю скриншот в формате {format_type.upper()}{enhancement_text}...\n"
+            "Пожалуйста, подождите."
+        )
+
         try:
-            # Проверяем аргументы команды
-            if not context.args:
-                await update.message.reply_text(
-                    "Пожалуйста, укажите формат: /screen [jpeg|png|webp] [enhance]"
-                )
-                return
-
-            # Получаем формат и проверяем наличие enhance
-            format_arg = context.args[0].lower()
-            enhance = len(context.args) > 1 and context.args[1].lower() == 'enhance'
-
-            # Проверяем валидность формата
-            if format_arg not in ['jpeg', 'png', 'webp']:
-                await update.message.reply_text(
-                    "Неверный формат. Используйте один из следующих: jpeg, png, webp"
-                )
-                return
-
-            # Отправляем начальное сообщение
-            enhancement_text = " с AI-улучшением" if enhance else ""
-            status_message = await update.message.reply_text(
-                f"Получаю скриншот в формате {format_arg.upper()}{enhancement_text}... Пожалуйста, подождите."
-            )
-
             # Получаем скриншот
-            screenshot_data = await self.screenshot_service.get_screenshot(format_arg, enhance)
+            screenshot_data = await self.screenshot_service.get_screenshot(format_type, enhance)
+
+            # Формируем подпись
+            enhancement_caption = "✨ С улучшением качества" if enhance else "📸 Стандартное качество"
+            caption = f"Формат: {format_type.upper()}\n{enhancement_caption}"
 
             # Отправляем скриншот
-            enhancement_caption = " (AI-улучшенный)" if enhance else ""
-            await update.message.reply_photo(
+            await query.message.reply_photo(
                 photo=io.BytesIO(screenshot_data),
-                caption=f"Скриншот диаграмм в формате {format_arg.upper()}{enhancement_caption}"
+                caption=caption
             )
 
             # Удаляем статусное сообщение
             await status_message.delete()
 
-        except IndexError:
-            await update.message.reply_text(
-                "Пожалуйста, укажите формат: /screen [jpeg|png|webp] [enhance]"
-            )
         except Exception as e:
-            error_message = f"Произошла ошибка: {str(e)}"
+            error_message = f"❌ Произошла ошибка: {str(e)}"
             logger.error(error_message)
-            await update.message.reply_text(f"Извините, произошла ошибка: {str(e)}")
+            await status_message.edit_text(error_message)
 
     def run(self):
         try:
             # Создаем приложение
             application = Application.builder().token(TELEGRAM_TOKEN).build()
 
-            # Добавляем обработчики команд
+            # Добавляем обработчики
             application.add_handler(CommandHandler("start", self.start))
-            application.add_handler(CommandHandler("screen", self.screen))
+            application.add_handler(CallbackQueryHandler(self.button_handler))
 
             # Запускаем бота
             logger.info("Запуск бота...")
