@@ -1,8 +1,7 @@
-from google.oauth2.credentials import Credentials
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from config import SPREADSHEET_ID, SHEET_NAME, CREDENTIALS_FILE, START_MARKER, END_MARKER
+from config import SPREADSHEET_ID, SHEET_NAME, CREDENTIALS_FILE
 from utils.logger import logger
 
 class GoogleSheetsService:
@@ -29,25 +28,12 @@ class GoogleSheetsService:
                 spreadsheetId=SPREADSHEET_ID,
                 range=f'{SHEET_NAME}!A:A'
             ).execute()
-            
+
             values = result.get('values', [])
             if not values:
                 raise ValueError("No data found in the sheet")
 
-            start_index = None
-            end_index = None
-
-            for i, row in enumerate(values):
-                if row and row[0].lower() == START_MARKER:
-                    start_index = i + 1
-                elif row and row[0].lower() == END_MARKER:
-                    end_index = i + 1
-                    break
-
-            if start_index is None or end_index is None:
-                raise ValueError("Could not find start/end markers in the sheet")
-
-            return start_index, end_index
+            return 1, len(values)  # Возвращаем весь диапазон листа
 
         except HttpError as e:
             logger.error(f"Google Sheets API error: {str(e)}")

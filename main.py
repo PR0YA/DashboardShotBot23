@@ -24,11 +24,8 @@ class DashboardBot:
             # Отправляем начальное сообщение
             status_message = await update.message.reply_text("Получаю скриншот... Пожалуйста, подождите.")
 
-            # Получаем диапазон диаграмм
-            start_row, end_row = await self.google_sheets_service.get_chart_range()
-
             # Получаем скриншот
-            screenshot_data = await self.screenshot_service.get_screenshot(start_row, end_row)
+            screenshot_data = await self.screenshot_service.get_screenshot()
 
             # Отправляем скриншот
             await update.message.reply_photo(
