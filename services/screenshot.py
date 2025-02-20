@@ -1,6 +1,6 @@
 import aiohttp
 import asyncio
-from config import APIFLASH_KEY, APIFLASH_URL, SPREADSHEET_ID
+from config import PAGEPIXELS_KEY, PAGEPIXELS_URL, SPREADSHEET_ID
 from utils.logger import logger
 
 class ScreenshotService:
@@ -21,30 +21,40 @@ class ScreenshotService:
         logger.info(f"Getting screenshot for rows {start_row} to {end_row}")
 
         params = {
-            'access_key': APIFLASH_KEY,
+            'key': PAGEPIXELS_KEY,
             'url': spreadsheet_url,
-            'viewport': '3840x2160',  # Увеличили размер viewport еще больше
+            'width': 2440,
+            'height': 2000,
+            'format': 'jpg',
+            'quality': 100,
+            'wait_for': '.grid-container',  # Wait for Google Sheets grid to load
             'scroll_to': f'A{start_row}',
-            'element': '.waffle',  # Изменили селектор на специфичный для Google Sheets
-            'format': 'jpeg',
-            'quality': '100',
-            'fresh': 'true',
-            'full_page': 'true',
-            'delay': '5',  # Увеличили задержку до 5 секунд
-            'margin': '100',  # Увеличили отступы
-            'css': '.grid-container { zoom: 0.8; }' # Добавили масштабирование для лучшего обзора
+            'inject_css': '''
+                body { overflow: visible !important; }
+                .grid-container, .waffle {
+                    visibility: visible !important;
+                    display: block !important;
+                }
+                .waffle-embedded-object-overlay {
+                    visibility: visible !important;
+                    opacity: 1 !important;
+                }
+            ''',
+            'wait_time': 5000,  # Wait 5 seconds for content to load
+            'block_resources': ['analytics', 'advertising'],  # Block unnecessary resources
+            'cache_ttl': 0  # Disable caching on PagePixels side
         }
 
         try:
-            logger.info("Sending request to APIFlash")
+            logger.info("Sending request to PagePixels")
             async with aiohttp.ClientSession() as session:
-                async with session.get(APIFLASH_URL, params=params) as response:
+                async with session.get(PAGEPIXELS_URL, params=params) as response:
                     if response.status != 200:
                         error_text = await response.text()
-                        logger.error(f"APIFlash error: {error_text}")
+                        logger.error(f"PagePixels error: {error_text}")
                         raise Exception(f"Failed to get screenshot: {response.status}")
 
-                    logger.info("Successfully received screenshot from APIFlash")
+                    logger.info("Successfully received screenshot from PagePixels")
                     screenshot_data = await response.read()
 
                     # Cache the result
