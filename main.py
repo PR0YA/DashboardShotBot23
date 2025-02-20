@@ -163,7 +163,18 @@ class DashboardBot:
 
         action = query.data.split('_')[1]
         if action == 'restart':
-            await self.start(update, context)
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text="🤖 *Добро пожаловать в DashboardSJ Bot\!*\n\nЭтот бот поможет вам создавать качественные скриншоты Google Sheets.\n\n*Процесс создания скриншота:*\n1. Выберите формат\n2. Укажите масштаб (50-200%)\n3. Выберите область (или весь лист)\n4. Выберите пресет улучшения\n5. Просмотрите результат\n\nВыберите формат для начала 👇",
+                reply_markup=InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📸 PNG", callback_data="format_png"),
+                        InlineKeyboardButton("🖼 JPEG", callback_data="format_jpeg"),
+                        InlineKeyboardButton("🌅 WebP", callback_data="format_webp")
+                    ]
+                ]),
+                parse_mode='MarkdownV2'
+            )
             return CHOOSING_FORMAT
         else:
             try:
