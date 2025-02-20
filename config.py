@@ -9,7 +9,7 @@ SHEET_NAME = "тестовая ре-визуализация"
 CREDENTIALS_FILE = "attached_assets/ageless-welder-451507-k4-31eed6cef9d3.json"
 
 # Screenshot Service Configuration
-APIFLASH_KEY = "VfOP4pUxrpzUW7iX4zhC6drEefDlAj0UcwAmBRYO5qE"
+APIFLASH_KEY = "c1271bca0a534933af8a069e3a336d64"
 APIFLASH_URL = "https://api.apiflash.com/v1/urltoimage"
 
 # Cache Configuration

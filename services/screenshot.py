@@ -2,44 +2,46 @@ import aiohttp
 import asyncio
 from config import APIFLASH_KEY, APIFLASH_URL, SPREADSHEET_ID
 from utils.logger import logger
+from urllib.parse import quote
 
 class ScreenshotService:
     def __init__(self):
         self.cache = {}
 
-    async def get_screenshot(self, start_row=None, end_row=None):
+    async def get_screenshot(self):
         try:
             if not APIFLASH_KEY:
                 raise ValueError("APIFlash key is not configured")
 
-            spreadsheet_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit"
+            # Формируем URL с правильным gid
+            spreadsheet_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit?gid=2045841507#gid=2045841507"
 
             logger.info(f"Getting screenshot for spreadsheet")
             logger.info(f"Using spreadsheet URL: {spreadsheet_url}")
 
+            # Кодируем URL Google Sheets
+            encoded_url = quote(spreadsheet_url)
+
+            # Базовые параметры запроса точно как в рабочем примере
             params = {
-                'url': spreadsheet_url,
-                'width': 2440,
-                'height': 2000,
-                'fresh': True,
-                'full_page': True,
-                'format': 'jpeg',
-                'delay': 5000
+                'access_key': APIFLASH_KEY,
+                'url': encoded_url,
+                'width': '2440',
+                'height': '2000',
+                'full_page': 'true'
             }
 
             try:
                 logger.info("Sending request to APIFlash")
-                logger.debug(f"Request URL: {APIFLASH_URL}")
-                logger.debug(f"Request parameters: {params}")
 
                 async with aiohttp.ClientSession() as session:
-                    # Формируем URL с ключом доступа
-                    request_url = f"{APIFLASH_URL}?access_key={APIFLASH_KEY}"
-                    # Добавляем остальные параметры
-                    for key, value in params.items():
-                        request_url += f"&{key}={str(value).lower()}"
+                    # Формируем полный URL с параметрами
+                    query_params = "&".join([f"{k}={v}" for k, v in params.items()])
+                    request_url = f"{APIFLASH_URL}?{query_params}"
 
-                    logger.debug(f"Sending request to: {request_url.replace(APIFLASH_KEY, '***')}")
+                    # Логируем URL (скрывая ключ)
+                    safe_url = request_url.replace(APIFLASH_KEY, "***")
+                    logger.debug(f"Request URL (key hidden): {safe_url}")
 
                     async with session.get(request_url) as response:
                         if response.status != 200:
