@@ -1,6 +1,6 @@
 import aiohttp
 import logging
-from typing import Optional, Dict
+from typing import Optional
 from config import (
     APIFLASH_KEY,
     APIFLASH_URL,
@@ -49,17 +49,11 @@ class ScreenshotService:
             logger.error(f"Error in screenshot service: {e}")
             return None
 
-    def get_format_options(self) -> Dict[str, str]:
+    @staticmethod
+    def get_format_options():
         """Возвращает словарь доступных форматов с описаниями"""
         return {
-            'png': 'PNG - Высокое качество, с прозрачностью',
+            'png': 'PNG - Высокое качество',
             'jpeg': 'JPEG - Компактный размер',
             'webp': 'WebP - Современный формат'
         }
-
-ScreenshotService.default_presets = {
-    'default': {'clipLimit': 0.8, 'sharpness': 3.4},
-    'high_contrast': {'clipLimit': 1.2, 'sharpness': 3.8},
-    'text_optimal': {'clipLimit': 0.6, 'sharpness': 4.0},
-    'chart_optimal': {'clipLimit': 1.0, 'sharpness': 3.0}
-}

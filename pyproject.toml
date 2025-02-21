@@ -1,28 +1,16 @@
 [project]
-name = "repl-nix-workspace"
+name = "telegram-screenshot-bot"
 version = "0.1.0"
-description = "Add your description here"
+description = "Telegram bot for creating screenshots from Google Sheets"
 requires-python = ">=3.11"
 dependencies = [
-    "aiohttp>=3.11.12",
-    "google-api-python-client>=2.161.0",
-    "google-auth-oauthlib>=1.2.1",
-    "google-auth>=2.38.0",
-    "google-auth-httplib2>=0.2.0",
-    "flask-login>=0.6.3",
-    "flask-wtf>=1.2.2",
-    "oauthlib>=3.2.2",
-    "sendgrid>=6.11.0",
-    "twilio>=9.4.5",
-    "trafilatura>=2.0.0",
-    "opencv-python-headless>=4.11.0.86",
-    "numpy>=2.2.3",
-    "pillow>=11.1.0",
-    "matplotlib>=3.10.0",
+    "aiogram>=3.1.1",
+    "aiohttp>=3.8.0",
+    "opencv-python-headless>=4.8.0",
+    "python-dotenv>=1.0.0",
+    "numpy>=1.24.0",
+    "requests>=2.31.0",
     "psutil>=7.0.0",
-    "requests>=2.32.3",
-    "python-dotenv>=1.0.1",
-    "slack-sdk>=3.34.0",
-    "aiogram>=3.18.0",
-    "binpan>=0.4.15",
+    "telegram>=0.0.1",
+    "python-telegram-bot==20.7",
 ]
