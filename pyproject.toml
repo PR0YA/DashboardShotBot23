@@ -21,4 +21,5 @@ dependencies = [
     "numpy>=2.2.3",
     "pillow>=11.1.0",
     "matplotlib>=3.10.0",
+    "psutil>=7.0.0",
 ]
