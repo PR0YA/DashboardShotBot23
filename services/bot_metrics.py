@@ -1,7 +1,7 @@
 import time
 import psutil
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from utils.logger import logger
 
@@ -73,14 +73,24 @@ class BotMetrics:
         except Exception as e:
             logger.error(f"Error updating system metrics: {e}")
 
-    def get_performance_stats(self) -> Dict[str, any]:
+    def get_performance_stats(self) -> Dict[str, Any]:
         """Возвращает статистику производительности бота"""
         try:
             if not self.command_metrics:
                 return {
-                    "commands": {"average_time": 0, "success_rate": 100},
-                    "system": {"cpu": 0, "memory": 0},
-                    "errors": {"total": 0, "types": {}}
+                    "commands": {
+                        "average_time": 0,
+                        "success_rate": 100,
+                        "total_executed": 0
+                    },
+                    "system": {
+                        "cpu": 0,
+                        "memory": 0
+                    },
+                    "errors": {
+                        "total": 0,
+                        "types": {}
+                    }
                 }
 
             # Статистика команд
@@ -118,7 +128,21 @@ class BotMetrics:
 
         except Exception as e:
             logger.error(f"Error getting performance stats: {e}")
-            return {}
+            return {
+                "commands": {
+                    "average_time": 0,
+                    "success_rate": 100,
+                    "total_executed": 0
+                },
+                "system": {
+                    "cpu": 0,
+                    "memory": 0
+                },
+                "errors": {
+                    "total": 0,
+                    "types": {}
+                }
+            }
 
     def _cleanup_old_metrics(self):
         """Очищает старые метрики"""

@@ -1,5 +1,5 @@
-import aiohttp
-import asyncio
+import requests
+import time
 from config import APIFLASH_KEY, APIFLASH_URL, SPREADSHEET_ID
 from utils.logger import logger
 from urllib.parse import quote
@@ -24,8 +24,8 @@ class ScreenshotService:
         params_str = json.dumps(params, sort_keys=True)
         return hashlib.sha256(params_str.encode()).hexdigest()
 
-    async def get_screenshot(self, format='jpeg', enhance=False, zoom=100, 
-                           area=None, preset='default', use_cache=True):
+    def get_screenshot(self, format='jpeg', enhance=False, zoom=100, 
+                     area=None, preset='default', use_cache=True):
         """
         Get a screenshot with specified parameters and caching
 
@@ -52,7 +52,7 @@ class ScreenshotService:
 
             # Проверяем кэш, если включено использование кэша
             if use_cache:
-                cached_data = await self.cache_manager.get_cached_screenshot(cache_params, format)
+                cached_data = self.cache_manager.get_cached_screenshot(cache_params, format)
                 if cached_data:
                     logger.info("Using cached screenshot")
                     return cached_data
@@ -95,36 +95,34 @@ class ScreenshotService:
             try:
                 logger.info(f"Sending request to APIFlash with parameters: {str({k: v for k, v in params.items() if k != 'access_key'})}")
 
-                async with aiohttp.ClientSession() as session:
-                    # Формируем полный URL с параметрами
-                    query_params = "&".join([f"{k}={v}" for k, v in params.items()])
-                    request_url = f"{APIFLASH_URL}?{query_params}"
+                # Формируем полный URL с параметрами
+                query_params = "&".join([f"{k}={v}" for k, v in params.items()])
+                request_url = f"{APIFLASH_URL}?{query_params}"
 
-                    async with session.get(request_url) as response:
-                        if response.status != 200:
-                            error_text = await response.text()
-                            logger.error(f"APIFlash error: {error_text}")
-                            raise Exception(f"Failed to get screenshot: {response.status}")
+                response = requests.get(request_url)
+                if response.status_code != 200:
+                    logger.error(f"APIFlash error: {response.text}")
+                    raise Exception(f"Failed to get screenshot: {response.status_code}")
 
-                        logger.info(f"Successfully received {format.upper()} screenshot from APIFlash")
-                        screenshot_data = await response.read()
+                logger.info(f"Successfully received {format.upper()} screenshot from APIFlash")
+                screenshot_data = response.content
 
-                        # Apply enhancement if requested
-                        if enhance:
-                            logger.info(f"Applying enhancement preset: {preset}")
-                            preset_params = self.default_presets.get(preset, self.default_presets['default'])
-                            screenshot_data = self.image_enhancer.enhance_screenshot(
-                                screenshot_data, 
-                                preset_params['clipLimit'],
-                                preset_params['sharpness']
-                            )
-                            logger.info("Enhancement completed")
+                # Apply enhancement if requested
+                if enhance:
+                    logger.info(f"Applying enhancement preset: {preset}")
+                    preset_params = self.default_presets.get(preset, self.default_presets['default'])
+                    screenshot_data = self.image_enhancer.enhance_screenshot(
+                        screenshot_data, 
+                        preset_params['clipLimit'],
+                        preset_params['sharpness']
+                    )
+                    logger.info("Enhancement completed")
 
-                        # Кэшируем результат, если включено использование кэша
-                        if use_cache:
-                            await self.cache_manager.cache_screenshot(cache_params, format, screenshot_data)
+                # Кэшируем результат, если включено использование кэша
+                if use_cache:
+                    self.cache_manager.cache_screenshot(cache_params, format, screenshot_data)
 
-                        return screenshot_data
+                return screenshot_data
 
             except Exception as e:
                 logger.error(f"Screenshot service error: {str(e)}")
