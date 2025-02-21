@@ -1,136 +1,64 @@
 import requests
-import time
-from config import APIFLASH_KEY, APIFLASH_URL, SPREADSHEET_ID
-from utils.logger import logger
-from urllib.parse import quote
-from services.image_enhancer import ImageEnhancer
-from services.cache_manager import CacheManager
+from config import APIFLASH_KEY, APIFLASH_URL, SPREADSHEET_URL
+from typing import Optional, Dict, Any
+import logging
 import hashlib
 import json
 
+logger = logging.getLogger(__name__)
+
 class ScreenshotService:
     def __init__(self):
-        self.image_enhancer = ImageEnhancer()
+        self.format_options = ['jpeg', 'png', 'webp']
         self.cache_manager = CacheManager(cache_dir="cache", max_size_mb=500)
-        self.default_presets = {
-            'default': {'clipLimit': 0.8, 'sharpness': 3.4},
-            'high_contrast': {'clipLimit': 1.2, 'sharpness': 3.8},
-            'text_optimal': {'clipLimit': 0.6, 'sharpness': 4.0},
-            'chart_optimal': {'clipLimit': 1.0, 'sharpness': 3.0}
-        }
+
+    def get_screenshot(self, format: str = 'png', quality: int = 100) -> Optional[bytes]:
+        """
+        Получает скриншот таблицы с заданными параметрами
+
+        Args:
+            format: Формат изображения (jpeg, png, webp)
+            quality: Качество изображения (1-100)
+
+        Returns:
+            bytes: Данные изображения или None в случае ошибки
+        """
+        try:
+            if format not in self.format_options:
+                raise ValueError(f"Unsupported format: {format}")
+
+            params = {
+                'access_key': APIFLASH_KEY,
+                'url': SPREADSHEET_URL,
+                'format': format,
+                'quality': str(quality),
+                'width': '2440',
+                'height': '2000',
+                'full_page': 'true'
+            }
+
+            logger.info(f"Getting screenshot with params: {str({k: v for k, v in params.items() if k != 'access_key'})}")
+
+            response = requests.get(APIFLASH_URL, params=params)
+            if response.status_code != 200:
+                logger.error(f"APIFlash error: {response.text}")
+                raise Exception(f"Failed to get screenshot: {response.status_code}")
+
+            logger.info(f"Successfully received {format.upper()} screenshot")
+            return response.content
+
+        except Exception as e:
+            logger.error(f"Screenshot service error: {str(e)}")
+            return None
+
+    def get_format_options(self) -> list:
+        """Возвращает список доступных форматов"""
+        return self.format_options.copy()
 
     def _generate_cache_key(self, params: dict) -> str:
         """Генерирует уникальный ключ для кэширования"""
         params_str = json.dumps(params, sort_keys=True)
         return hashlib.sha256(params_str.encode()).hexdigest()
-
-    def get_screenshot(self, format='jpeg', enhance=False, zoom=100, 
-                     area=None, preset='default', use_cache=True):
-        """
-        Get a screenshot with specified parameters and caching
-
-        Args:
-            format (str): Output format (jpeg, png, webp)
-            enhance (bool): Whether to apply image enhancement
-            zoom (int): Zoom level (50-200)
-            area (dict): Area to capture {x, y, width, height} or None for full page
-            preset (str): Enhancement preset name
-            use_cache (bool): Whether to use caching
-        """
-        try:
-            if not APIFLASH_KEY:
-                raise ValueError("APIFlash key is not configured")
-
-            # Параметры для кэширования
-            cache_params = {
-                'format': format,
-                'enhance': enhance,
-                'zoom': zoom,
-                'area': area,
-                'preset': preset
-            }
-
-            # Проверяем кэш, если включено использование кэша
-            if use_cache:
-                cached_data = self.cache_manager.get_cached_screenshot(cache_params, format)
-                if cached_data:
-                    logger.info("Using cached screenshot")
-                    return cached_data
-
-            # Формируем URL с правильным gid
-            spreadsheet_url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit?gid=2045841507#gid=2045841507"
-            logger.info(f"Getting screenshot for spreadsheet in {format.upper()} format")
-
-            # Кодируем URL Google Sheets
-            encoded_url = quote(spreadsheet_url)
-
-            # Базовые параметры запроса
-            params = {
-                'access_key': APIFLASH_KEY,
-                'url': encoded_url,
-                'format': format,
-                'quality': '100',
-                'full_page': 'true' if not area else 'false',
-                'zoom': str(zoom)
-            }
-
-            # Оптимизация размера для превью
-            if not enhance and area:
-                area = {k: v // 2 if isinstance(v, int) else v for k, v in area.items()}
-
-            # Добавляем параметры области, если указаны
-            if area:
-                params.update({
-                    'x': str(area['x']),
-                    'y': str(area['y']),
-                    'width': str(area['width']),
-                    'height': str(area['height'])
-                })
-            else:
-                params.update({
-                    'width': '2440',
-                    'height': '2000'
-                })
-
-            try:
-                logger.info(f"Sending request to APIFlash with parameters: {str({k: v for k, v in params.items() if k != 'access_key'})}")
-
-                # Формируем полный URL с параметрами
-                query_params = "&".join([f"{k}={v}" for k, v in params.items()])
-                request_url = f"{APIFLASH_URL}?{query_params}"
-
-                response = requests.get(request_url)
-                if response.status_code != 200:
-                    logger.error(f"APIFlash error: {response.text}")
-                    raise Exception(f"Failed to get screenshot: {response.status_code}")
-
-                logger.info(f"Successfully received {format.upper()} screenshot from APIFlash")
-                screenshot_data = response.content
-
-                # Apply enhancement if requested
-                if enhance:
-                    logger.info(f"Applying enhancement preset: {preset}")
-                    preset_params = self.default_presets.get(preset, self.default_presets['default'])
-                    screenshot_data = self.image_enhancer.enhance_screenshot(
-                        screenshot_data, 
-                        preset_params['clipLimit'],
-                        preset_params['sharpness']
-                    )
-                    logger.info("Enhancement completed")
-
-                # Кэшируем результат, если включено использование кэша
-                if use_cache:
-                    self.cache_manager.cache_screenshot(cache_params, format, screenshot_data)
-
-                return screenshot_data
-
-            except Exception as e:
-                logger.error(f"Screenshot service error: {str(e)}")
-                raise
-
-        except Exception as e:
-            logger.error(f"Screenshot service error: {str(e)}")
-            raise
 
     def get_available_presets(self):
         """Returns list of available enhancement presets"""
@@ -139,3 +67,25 @@ class ScreenshotService:
     def get_cache_stats(self):
         """Returns cache statistics"""
         return self.cache_manager.get_stats()
+
+
+class CacheManager:
+    def __init__(self, cache_dir, max_size_mb):
+        pass
+
+    def get_cached_screenshot(self, cache_params, format):
+        pass
+
+    def cache_screenshot(self, cache_params, format, screenshot_data):
+        pass
+
+    def get_stats(self):
+        pass
+
+
+ScreenshotService.default_presets = {
+    'default': {'clipLimit': 0.8, 'sharpness': 3.4},
+    'high_contrast': {'clipLimit': 1.2, 'sharpness': 3.8},
+    'text_optimal': {'clipLimit': 0.6, 'sharpness': 4.0},
+    'chart_optimal': {'clipLimit': 1.0, 'sharpness': 3.0}
+}

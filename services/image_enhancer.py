@@ -2,32 +2,34 @@ import cv2
 import numpy as np
 from PIL import Image, ImageEnhance
 import io
-from utils.logger import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ImageEnhancer:
     def enhance_screenshot(self, image_data: bytes, clip_limit: float = 0.8, 
                          sharpness: float = 3.4) -> bytes:
         """
-        Enhances the screenshot using customizable parameters.
+        Улучшает скриншот с использованием настраиваемых параметров.
 
         Args:
-            image_data (bytes): Original screenshot data
-            clip_limit (float): CLAHE clip limit for contrast enhancement
-            sharpness (float): Sharpening intensity
+            image_data (bytes): Исходные данные изображения
+            clip_limit (float): Предел CLAHE для улучшения контраста
+            sharpness (float): Интенсивность повышения резкости
         """
         try:
-            # Convert bytes to numpy array
+            # Конвертируем bytes в numpy array
             image_array = np.frombuffer(image_data, np.uint8)
-            # Decode image
+            # Декодируем изображение
             image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
 
-            # Convert to RGB color space
+            # Конвертируем в цветовое пространство RGB
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-            # Minimal denoising with reduced parameters
+            # Минимальное подавление шума с уменьшенными параметрами
             denoised = cv2.fastNlMeansDenoisingColored(image, None, 2, 2, 3, 5)
 
-            # Contrast enhancement with custom clipLimit
+            # Улучшение контраста с пользовательским clipLimit
             lab = cv2.cvtColor(denoised, cv2.COLOR_RGB2LAB)
             l, a, b = cv2.split(lab)
             clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(8,8))
@@ -35,16 +37,16 @@ class ImageEnhancer:
             enhanced_lab = cv2.merge((cl,a,b))
             enhanced = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2RGB)
 
-            # Custom sharpening intensity
+            # Настраиваемая интенсивность повышения резкости
             kernel = np.array([[-0.3,-0.3,-0.3],
                              [-0.3, sharpness,-0.3],
                              [-0.3,-0.3,-0.3]])
             sharpened = cv2.filter2D(enhanced, -1, kernel)
 
-            # Convert back to BGR for OpenCV
+            # Конвертируем обратно в BGR для OpenCV
             final = cv2.cvtColor(sharpened, cv2.COLOR_RGB2BGR)
 
-            # Convert to bytes
+            # Конвертируем в bytes
             success, buffer = cv2.imencode('.png', final)
             if not success:
                 raise ValueError("Failed to encode enhanced image")
@@ -54,4 +56,4 @@ class ImageEnhancer:
 
         except Exception as e:
             logger.error(f"Error in enhance_screenshot: {str(e)}")
-            return image_data  # Return original image if enhancement fails
+            return image_data  # Возвращаем оригинальное изображение в случае ошибки
