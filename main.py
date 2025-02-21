@@ -10,6 +10,10 @@ from services.screenshot import ScreenshotService
 from utils.logger import logger
 import io
 import psutil
+from services.process_manager import ProcessManager
+from services.bot_metrics import BotMetrics
+from services.error_handler import ErrorHandler
+from services.status_reporter import StatusReporter
 
 # Добавляем новые состояния для диалога
 CHOOSING_FORMAT, CHOOSING_ZOOM, SELECTING_AREA, CHOOSING_PRESET, PREVIEW_AREA, CONFIRMING = range(6)
@@ -142,24 +146,47 @@ class DashboardBot:
     def __init__(self):
         self.screenshot_service = ScreenshotService()
         self.progress_tasks = {}
+        self.bot_metrics = BotMetrics()
+        self.error_handler = ErrorHandler(self.bot_metrics)
+        self.status_reporter = StatusReporter(self.bot_metrics, self.error_handler)
 
-    async def animate_progress(self, message, text_template):
-        """Анимирует сообщение о прогрессе"""
+    async def animate_progress(self, message, text_template, operation_details=None):
+        """Анимирует сообщение о прогрессе с дополнительной информацией"""
         i = 0
         while True:
             try:
+                emoji = PROGRESS_EMOJI[i % 2]
+                progress_text = f"*{text_template}* {emoji}\n"
+
+                if operation_details:
+                    # Форматируем детали операции для лучшей читаемости
+                    details = operation_details.replace('.', '\.')
+                    details = details.replace('-', '\-')
+                    progress_text += f"\n*Детали операции:*\n{details}"
+
+                # Добавляем информацию о производительности
+                perf_stats = self.bot_metrics.get_performance_stats()
+                system_stats = f"""
+\n*Состояние системы:*
+• CPU: {perf_stats['system']['cpu']}%
+• RAM: {perf_stats['system']['memory']}%
+• Время ответа: {perf_stats['commands']['average_time']}с
+"""
+                progress_text += system_stats
+
                 await message.edit_text(
-                    text_template.format(emoji=PROGRESS_EMOJI[i % 2]),
+                    progress_text,
                     parse_mode='MarkdownV2'
                 )
                 i += 1
                 await asyncio.sleep(1)
-            except Exception:
+            except Exception as e:
+                logger.error(f"Error updating progress: {e}")
                 break
 
-    async def start_progress_animation(self, message, text_template):
-        """Запускает анимацию прогресса"""
-        task = asyncio.create_task(self.animate_progress(message, text_template))
+    async def start_progress_animation(self, message, text_template, operation_details=None):
+        """Запускает анимацию прогресса с дополнительной информацией"""
+        task = asyncio.create_task(self.animate_progress(message, text_template, operation_details))
         self.progress_tasks[message.message_id] = task
         return message
 
@@ -231,34 +258,13 @@ class DashboardBot:
 
     async def status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показывает статус бота"""
-        # Проверяем доступность сервисов
-        services_status = {
-            "Google Sheets API": "✅ Доступно",
-            "Скриншот сервис": "✅ Доступно",
-            "Улучшение изображений": "✅ Доступно"
-        }
+        # Обновляем системные метрики перед формированием отчета
+        self.bot_metrics.update_system_metrics()
 
-        status_text = """
-*Статус DashboardSJ Bot* 🔍
+        # Получаем форматированное сообщение о статусе
+        status_message = self.status_reporter.format_status_message()
 
-*Сервисы:*
-• Google Sheets API: {sheets_status}
-• Скриншот сервис: {screenshot_status}
-• Улучшение изображений: {enhancement_status}
-
-*Производительность:*
-• Время отклика: ~2с
-• Память: Оптимально
-• Кэш: Активен
-
-*Состояние:* ✅ Работает
-""".format(
-            sheets_status=services_status["Google Sheets API"],
-            screenshot_status=services_status["Скриншот сервис"],
-            enhancement_status=services_status["Улучшение изображений"]
-        )
-
-        await update.message.reply_text(status_text, parse_mode='MarkdownV2')
+        await update.message.reply_text(status_message, parse_mode='MarkdownV2')
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
@@ -338,19 +344,36 @@ class DashboardBot:
         return SELECTING_AREA
 
     async def area_chosen(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик выбора области скриншота с улучшенным прогресс-баром"""
         query = update.callback_query
         await query.answer()
 
         area_type = query.data.split('_')[1]
         areas = {
-            'full': None,
-            'metrics': {'x': 0, 'y': 0, 'width': 2440, 'height': 500},
-            'charts': {'x': 0, 'y': 500, 'width': 2440, 'height': 1500}
+            'full': 'весь dashboard',
+            'metrics': {'x': 0, 'y': 0, 'width': 2440, 'height': 500, 'desc': 'область метрик'},
+            'charts': {'x': 0, 'y': 500, 'width': 2440, 'height': 1500, 'desc': 'область графиков'}
         }
-        context.user_data['area'] = areas[area_type]
 
-        # Показываем прогресс создания превью
-        status_message = await self.start_progress_animation(query.message, "🔄 Создаю предварительный просмотр области... {}")
+        # Сохраняем только координаты области
+        context.user_data['area'] = (
+            areas[area_type] if isinstance(areas[area_type], dict)
+            else None
+        )
+
+        # Формируем детальную информацию о процессе
+        operation_details = (
+            f"Тип области: {areas[area_type]['desc'] if isinstance(areas[area_type], dict) else areas[area_type]}\n"
+            f"Размер: {areas[area_type]['width']}x{areas[area_type]['height']}px"
+            if isinstance(areas[area_type], dict) else "Размер: полный размер dashboard"
+        )
+
+        # Показываем прогресс создания превью с деталями операции
+        status_message = await self.start_progress_animation(
+            query.message,
+            "Создаю предварительный просмотр области",
+            operation_details
+        )
 
         try:
             # Создаем превью с уменьшенным размером
@@ -358,7 +381,11 @@ class DashboardBot:
             if preview_params['area']:
                 preview_params['area'] = {
                     k: v // 2 for k, v in preview_params['area'].items()
+                    if k in ('x', 'y', 'width', 'height')
                 }
+
+            # Засекаем время выполнения для метрик
+            start_time = self.bot_metrics.start_command_tracking('create_preview')
 
             preview_data = await self.screenshot_service.get_screenshot(
                 format='jpeg',  # всегда используем JPEG для превью
@@ -366,6 +393,9 @@ class DashboardBot:
                 zoom=context.user_data['zoom'],
                 area=preview_params['area']
             )
+
+            # Записываем метрики успешного выполнения
+            self.bot_metrics.end_command_tracking('create_preview', start_time, success=True)
 
             # Показываем превью и опции
             keyboard = [
@@ -386,6 +416,10 @@ class DashboardBot:
             return PREVIEW_AREA
 
         except Exception as e:
+            # Записываем метрики неуспешного выполнения
+            self.bot_metrics.end_command_tracking('create_preview', start_time, success=False)
+            self.bot_metrics.track_error(type(e).__name__)
+
             error_message = f"❌ Ошибка создания превью: {str(e)}"
             logger.error(error_message)
             await self.stop_progress_animation(status_message.message_id)
@@ -434,7 +468,7 @@ class DashboardBot:
         context.user_data['preset'] = preset
 
         # Показываем прогресс создания финального скриншота
-        status_message = await self.start_progress_animation(query.message, "🔄 Создаю финальный скриншот... {}")
+        status_message = await self.start_progress_animation(query.message, "Создаю финальный скриншот...")
 
         try:
             screenshot_data = await self.screenshot_service.get_screenshot(
@@ -537,45 +571,19 @@ class DashboardBot:
 """
         await update.message.reply_text(stats_text, parse_mode='MarkdownV2')
 
-
-    async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-        error = context.error
-        logger.error(f"Exception while handling an update: {error}")
-
-        # Добавляем информацию о текущем процессе
-        current_pid = os.getpid()
-        process_info = f"Current PID: {current_pid}"
-
-        try:
-            # Получаем информацию о других процессах бота
-            other_processes = [p for p in get_running_bot_processes() if p.pid != current_pid]
-            if other_processes:
-                process_info += "\nOther bot processes found:"
-                for proc in other_processes:
-                    try:
-                        cmdline = ' '.join(proc.cmdline())
-                        process_info += f"\n- PID={proc.pid}, CMD={cmdline}"
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        process_info += f"\n- PID={proc.pid} (inaccessible)"
-            logger.error(f"Process state when error occurred: {process_info}")
-        except Exception as e:
-            logger.error(f"Error getting process information: {e}")
-
-        if "Conflict: terminated by other getUpdates request" in str(error):
-            logger.error(f"Обнаружен конфликт: несколько экземпляров бота запущены одновременно\n{process_info}")
-            # Пытаемся очистить процессы при обнаружении конфликта
-            try:
-                cleanup_old_processes()
-            except Exception as e:
-                logger.error(f"Error cleaning up processes after conflict: {e}")
-            return
+    async def error_handler(self, update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Обработчик ошибок с использованием нового ErrorHandler"""
+        error_message = await self.error_handler.handle_error(
+            context.error,
+            {'update_id': getattr(update, 'update_id', None)}
+        )
 
         if update and isinstance(update, Update) and update.effective_message:
-            await update.effective_message.reply_text(
-                "Произошла ошибка при обработке запроса. Попробуйте позже."
-            )
+            await update.effective_message.reply_text(error_message)
 
     async def run(self):
+        """Запуск бота с отслеживанием метрик"""
+        application = None
         try:
             application = Application.builder().token(TELEGRAM_TOKEN).build()
 
@@ -602,61 +610,105 @@ class DashboardBot:
             application.add_handler(screenshot_handler)
             application.add_error_handler(self.error_handler)
 
-            logger.info("Запуск бота...")
+            logger.info("Bot handlers configured successfully")
 
             # Проверяем загрузку системы перед запуском
             memory = psutil.virtual_memory()
-            cpu = psutil.cpu_percent(interval=1)
-            if memory.percent > 90 or cpu > 80:
-                logger.warning(f"High system load detected - Memory: {memory.percent}%, CPU: {cpu}%")
+            cpu_percent = psutil.cpu_percent(interval=1)
+            if memory.percent > 90 or cpu_percent > 80:
+                logger.warning(f"High system load detected - Memory: {memory.percent}%, CPU: {cpu_percent}%")
 
-            # Добавляем небольшую задержку перед запуском для гарантированного завершения старых процессов
-            await asyncio.sleep(2)
-
-            # Правильная инициализация и запуск приложения
+            # Инициализация приложения
+            logger.info("Initializing application...")
             await application.initialize()
+            logger.info("Application initialized successfully")
+
+            # Запуск приложения
+            logger.info("Starting application...")
             await application.start()
-            await application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+            logger.info("Application started successfully")
+
+            # Настройка обработчиков сигналов
+            loop = asyncio.get_running_loop()
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(
+                    self._handle_signal(application, s)))
+
+            logger.info("Signal handlers configured")
+            logger.info("Starting polling...")
+
+            # Запуск polling с расширенным логированием
+            await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
         except Exception as e:
             logger.error(f"Error running bot: {str(e)}")
-            # Ensure proper shutdown
-            try:
-                await application.stop()
-                await application.shutdown()
-            except Exception as shutdown_error:
-                logger.error(f"Error during shutdown: {str(shutdown_error)}")
+            if application:
+                try:
+                    await application.stop()
+                    logger.info("Application stopped after error")
+                except Exception as shutdown_error:
+                    logger.error(f"Error during shutdown: {str(shutdown_error)}")
             raise
+
+    async def _handle_signal(self, application, sig):
+        """Обработчик сигналов для корректного завершения"""
+        logger.info(f"Received signal {sig.name}")
+        try:
+            await application.stop()
+            logger.info("Application stopped successfully after signal")
+        except Exception as e:
+            logger.error(f"Error stopping application after signal: {e}")
+
+async def shutdown():
+    """Корректное завершение работы бота"""
+    logger.info("Starting graceful shutdown...")
+    try:
+        # Очищаем процессы и PID файл
+        ProcessManager.cleanup_old_processes()
+        ProcessManager.remove_pid()
+        logger.info("Cleanup completed")
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
 
 if __name__ == '__main__':
     try:
         logger.info("Starting bot initialization...")
 
         # Принудительная очистка всех процессов
-        cleanup_old_processes()
+        ProcessManager.cleanup_old_processes()
 
         # Двойная проверка после очистки
-        if is_bot_running():
+        if ProcessManager.is_bot_running():
             logger.error("Bot is still running after cleanup. Stopping.")
             sys.exit(1)
 
         # Сохраняем PID только после успешной очистки
-        save_pid()
+        ProcessManager.save_pid()
 
         logger.info("Bot initialization completed successfully")
 
         bot = DashboardBot()
-        # Используем новый event loop для запуска бота
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(bot.run())
-        finally:
-            loop.close()
 
-    except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
+        try:
+            # Используем asyncio.run для управления event loop
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(bot.run())
+        except KeyboardInterrupt:
+            logger.info("Bot stopped by user")
+            # Запускаем корректное завершение
+            loop.run_until_complete(shutdown())
+        except Exception as e:
+            logger.error(f"Critical error: {str(e)}")
+            # Даже при ошибке пытаемся корректно завершить работу
+            if 'loop' in locals():
+                loop.run_until_complete(shutdown())
+        finally:
+            if 'loop' in locals():
+                loop.close()
+                logger.info("Event loop closed")
+
     except Exception as e:
-        logger.error(f"Critical error: {str(e)}")
-    finally:
-        remove_pid()
+        logger.error(f"Critical error during initialization: {str(e)}")
+        ProcessManager.remove_pid()
+        sys.exit(1)
