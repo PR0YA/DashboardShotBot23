@@ -1,97 +1,78 @@
-import os
-import sys
+import asyncio
 import logging
-from telegram.ext import Updater, CommandHandler
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-# Расширенная настройка логирования
+# Настройка логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.DEBUG,
-    handlers=[
-        logging.FileHandler('bot.log'),
-        logging.StreamHandler()
-    ]
+    level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
 # Токен из конфигурации
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "7770923655:AAHcyQiCKWSYKRB9JfxsD9wMSAutdyCz9NQ")
+TELEGRAM_TOKEN = "7770923655:AAHcyQiCKWSYKRB9JfxsD9wMSAutdyCz9NQ"
 
-def start_command(update, context):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /start"""
     try:
-        update.message.reply_text(
+        await update.message.reply_text(
             "👋 Привет! Я бот для создания скриншотов.\n"
-            "Сейчас я работаю в режиме отладки.\n"
             "Используйте /help для получения списка команд."
         )
-        logger.info("Successfully sent start message")
+        logger.info(f"Start command handled for user {update.effective_user.id}")
     except Exception as e:
-        logger.error(f"Error sending start message: {e}")
-        raise
+        logger.error(f"Error in start command: {e}")
+        await update.message.reply_text("Произошла ошибка. Попробуйте позже.")
 
-def help_command(update, context):
+async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /help"""
     try:
-        help_text = """
-*Доступные команды:*
-/start \- Начать работу с ботом
-/help \- Показать это сообщение
-/status \- Проверить статус бота
-"""
-        update.message.reply_text(help_text, parse_mode='MarkdownV2')
-        logger.info("Successfully sent help message")
+        await update.message.reply_text(
+            "Доступные команды:\n"
+            "/start - Начать работу с ботом\n"
+            "/help - Показать это сообщение\n"
+            "/status - Проверить статус бота"
+        )
+        logger.info(f"Help command handled for user {update.effective_user.id}")
     except Exception as e:
-        logger.error(f"Error sending help message: {e}")
-        raise
+        logger.error(f"Error in help command: {e}")
+        await update.message.reply_text("Произошла ошибка. Попробуйте позже.")
 
-def status_command(update, context):
+async def status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /status"""
     try:
-        update.message.reply_text("✅ Бот работает нормально\n")
-        logger.info("Successfully sent status message")
+        await update.message.reply_text("✅ Бот работает нормально")
+        logger.info(f"Status command handled for user {update.effective_user.id}")
     except Exception as e:
-        logger.error(f"Error sending status message: {e}")
+        logger.error(f"Error in status command: {e}")
+        await update.message.reply_text("Произошла ошибка. Попробуйте позже.")
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Глобальный обработчик ошибок"""
+    logger.error(f"Exception while handling an update: {context.error}")
+
+async def main() -> None:
+    """Запуск бота"""
+    try:
+        # Создаем приложение
+        application = Application.builder().token(TELEGRAM_TOKEN).build()
+
+        # Добавляем обработчики команд
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("help", help))
+        application.add_handler(CommandHandler("status", status))
+
+        # Добавляем обработчик ошибок
+        application.add_error_handler(error_handler)
+
+        # Запускаем бота
+        logger.info("Starting bot...")
+        await application.run_polling()
+
+    except Exception as e:
+        logger.error(f"Critical error in main: {e}")
         raise
 
-def error_handler(update, context):
-    """Обработчик ошибок"""
-    logger.error(f"Exception while handling an update: {context.error}")
-    try:
-        if update and hasattr(update, 'effective_message'):
-            update.effective_message.reply_text(
-                "Произошла ошибка при обработке команды. Попробуйте позже."
-            )
-    except Exception as e:
-        logger.error(f"Error in error handler: {e}")
-
-def main():
-    """Основная функция запуска бота"""
-    try:
-        logger.info("Starting bot initialization...")
-
-        # Создаем апдейтер
-        updater = Updater(TELEGRAM_TOKEN, use_context=True)
-        dispatcher = updater.dispatcher
-        logger.info("Updater created successfully")
-
-        # Регистрация обработчиков команд
-        dispatcher.add_handler(CommandHandler("start", start_command))
-        dispatcher.add_handler(CommandHandler("help", help_command))
-        dispatcher.add_handler(CommandHandler("status", status_command))
-        logger.info("Command handlers registered")
-
-        # Регистрация обработчика ошибок
-        dispatcher.add_error_handler(error_handler)
-        logger.info("Error handler registered")
-
-        logger.info("Starting polling...")
-        updater.start_polling()
-        updater.idle()
-
-    except Exception as e:
-        logger.error(f"Critical error: {e}")
-        sys.exit(1)
-
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
