@@ -7,8 +7,8 @@ from services.screenshot import ScreenshotService
 from utils.logger import logger
 import io
 
-# Состояния разговора
-CHOOSING_FORMAT, CHOOSING_ZOOM, SELECTING_AREA, CHOOSING_PRESET, CONFIRMING = range(5)
+# Добавляем новые состояния для диалога
+CHOOSING_FORMAT, CHOOSING_ZOOM, SELECTING_AREA, CHOOSING_PRESET, PREVIEW_AREA, CONFIRMING = range(6)
 
 class DashboardBot:
     def __init__(self):
@@ -27,14 +27,15 @@ class DashboardBot:
         welcome_text = """
 🤖 *Добро пожаловать в DashboardSJ Bot\!*
 
-Этот бот поможет вам создавать качественные скриншоты Google Sheets.
+Этот бот поможет вам создавать качественные скриншоты Google Sheets\.
 
 *Процесс создания скриншота:*
-1. Выберите формат
-2. Укажите масштаб (50-200%)
-3. Выберите область (или весь лист)
-4. Выберите пресет улучшения
-5. Просмотрите результат
+1\. Выберите формат
+2\. Укажите масштаб \(50\-200%\)
+3\. Выберите область \(или весь лист\)
+4\. Выберите пресет улучшения
+5\. Проверьте превью
+6\. Подтвердите сохранение
 
 Выберите формат для начала 👇
 """
@@ -102,17 +103,84 @@ class DashboardBot:
         }
         context.user_data['area'] = areas[area_type]
 
-        presets = self.screenshot_service.get_available_presets()
-        keyboard = [[InlineKeyboardButton(preset.replace('_', ' ').title(),
-                                      callback_data=f"preset_{preset}")]
-                   for preset in presets]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        await query.edit_message_text(
-            "Область выбрана.\nВыберите пресет улучшения изображения:",
-            reply_markup=reply_markup
+        # Показываем прогресс создания превью
+        status_message = await query.edit_message_text(
+            "🔄 Создаю предварительный просмотр области...\n"
+            "⏳ Это может занять несколько секунд"
         )
-        return CHOOSING_PRESET
+
+        try:
+            # Создаем превью с уменьшенным размером
+            preview_params = context.user_data.copy()
+            if preview_params['area']:
+                preview_params['area'] = {
+                    k: v // 2 for k, v in preview_params['area'].items()
+                }
+
+            preview_data = await self.screenshot_service.get_screenshot(
+                format='jpeg',  # всегда используем JPEG для превью
+                enhance=False,  # без улучшений для скорости
+                zoom=context.user_data['zoom'],
+                area=preview_params['area']
+            )
+
+            # Показываем превью и опции
+            keyboard = [
+                [
+                    InlineKeyboardButton("✅ Область верная", callback_data="preview_ok"),
+                    InlineKeyboardButton("🔄 Выбрать другую", callback_data="preview_change")
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await context.bot.send_photo(
+                chat_id=query.message.chat_id,
+                photo=io.BytesIO(preview_data),
+                caption="Предварительный просмотр выбранной области.\nВсё верно?",
+                reply_markup=reply_markup
+            )
+            await status_message.delete()
+            return PREVIEW_AREA
+
+        except Exception as e:
+            error_message = f"❌ Ошибка создания превью: {str(e)}"
+            logger.error(error_message)
+            await status_message.edit_text(error_message)
+            return ConversationHandler.END
+
+    async def handle_preview(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query = update.callback_query
+        await query.answer()
+
+        choice = query.data.split('_')[1]
+        if choice == 'change':
+            keyboard = [
+                [
+                    InlineKeyboardButton("📊 Весь dashboard", callback_data="area_full"),
+                    InlineKeyboardButton("📈 Только метрики", callback_data="area_metrics"),
+                    InlineKeyboardButton("📉 Только графики", callback_data="area_charts")
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await query.edit_message_text(
+                "Выберите другую область скриншота:",
+                reply_markup=reply_markup
+            )
+            return SELECTING_AREA
+        else:
+            # Показываем доступные пресеты
+            presets = self.screenshot_service.get_available_presets()
+            keyboard = [[InlineKeyboardButton(preset.replace('_', ' ').title(),
+                                           callback_data=f"preset_{preset}")]
+                       for preset in presets]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await query.edit_message_text(
+                "Область подтверждена.\nВыберите пресет улучшения изображения:",
+                reply_markup=reply_markup
+            )
+            return CHOOSING_PRESET
 
     async def preset_chosen(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
@@ -121,7 +189,12 @@ class DashboardBot:
         preset = query.data.split('_')[1]
         context.user_data['preset'] = preset
 
-        status_message = await query.edit_message_text("🔄 Создаю превью...")
+        # Показываем прогресс создания финального скриншота
+        status_message = await query.edit_message_text(
+            "🔄 Создаю финальный скриншот...\n"
+            "⏳ Применяю выбранные настройки\n"
+            "📸 Это может занять некоторое время"
+        )
 
         try:
             screenshot_data = await self.screenshot_service.get_screenshot(
@@ -140,10 +213,11 @@ class DashboardBot:
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
 
+            # Отправляем финальный результат
             await context.bot.send_photo(
                 chat_id=query.message.chat_id,
                 photo=io.BytesIO(screenshot_data),
-                caption=f"Превью скриншота:\nФормат: {context.user_data['format'].upper()}\n"
+                caption=f"Готовый скриншот:\nФормат: {context.user_data['format'].upper()}\n"
                         f"Масштаб: {context.user_data['zoom']}%\n"
                         f"Пресет: {preset}",
                 reply_markup=reply_markup
@@ -152,7 +226,7 @@ class DashboardBot:
             return CONFIRMING
 
         except Exception as e:
-            error_message = f"❌ Ошибка создания превью: {str(e)}"
+            error_message = f"❌ Ошибка создания скриншота: {str(e)}"
             logger.error(error_message)
             await status_message.edit_text(error_message)
             return ConversationHandler.END
@@ -204,6 +278,22 @@ class DashboardBot:
         try:
             application = Application.builder().token(TELEGRAM_TOKEN).build()
 
+            # Add conversation handler with the new state
+            screenshot_handler = ConversationHandler(
+                entry_points=[CommandHandler("start", self.start)],
+                states={
+                    CHOOSING_FORMAT: [CallbackQueryHandler(self.format_chosen, pattern=r"^format_")],
+                    CHOOSING_ZOOM: [CallbackQueryHandler(self.zoom_chosen, pattern=r"^zoom_")],
+                    SELECTING_AREA: [CallbackQueryHandler(self.area_chosen, pattern=r"^area_")],
+                    PREVIEW_AREA: [CallbackQueryHandler(self.handle_preview, pattern=r"^preview_")],
+                    CHOOSING_PRESET: [CallbackQueryHandler(self.preset_chosen, pattern=r"^preset_")],
+                    CONFIRMING: [CallbackQueryHandler(self.handle_confirmation, pattern=r"^confirm_")]
+                },
+                fallbacks=[CommandHandler("start", self.start)]
+            )
+
+            application.add_handler(screenshot_handler)
+            
             # Add error handler
             async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
                 error = context.error
@@ -219,21 +309,6 @@ class DashboardBot:
                     )
 
             application.add_error_handler(error_handler)
-
-            # Conversation handler for screenshot creation
-            screenshot_handler = ConversationHandler(
-                entry_points=[CommandHandler("start", self.start)],
-                states={
-                    CHOOSING_FORMAT: [CallbackQueryHandler(self.format_chosen, pattern=r"^format_")],
-                    CHOOSING_ZOOM: [CallbackQueryHandler(self.zoom_chosen, pattern=r"^zoom_")],
-                    SELECTING_AREA: [CallbackQueryHandler(self.area_chosen, pattern=r"^area_")],
-                    CHOOSING_PRESET: [CallbackQueryHandler(self.preset_chosen, pattern=r"^preset_")],
-                    CONFIRMING: [CallbackQueryHandler(self.handle_confirmation, pattern=r"^confirm_")]
-                },
-                fallbacks=[CommandHandler("start", self.start)]
-            )
-
-            application.add_handler(screenshot_handler)
 
             logger.info("Запуск бота...")
             application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
