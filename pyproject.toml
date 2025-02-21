@@ -20,6 +20,6 @@ dependencies = [
     "pillow>=11.1.0",
     "matplotlib>=3.10.0",
     "psutil>=7.0.0",
-    "telegram>=0.0.1",
     "python-telegram-bot==20.7",
+    "telegram>=0.0.1",
 ]
