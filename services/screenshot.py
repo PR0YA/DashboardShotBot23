@@ -16,6 +16,7 @@ class ScreenshotService:
             'full_page': 'true',
             'quality': '100'
         }
+        logger.info("ScreenshotService initialized with default parameters")
 
     def get_screenshot(self, format: str = 'png', quality: int = 100) -> Optional[bytes]:
         """
@@ -32,6 +33,9 @@ class ScreenshotService:
             if format not in self.format_options:
                 raise ValueError(f"Unsupported format: {format}")
 
+            if not APIFLASH_KEY:
+                raise ValueError("APIFlash key is not configured")
+
             params = {
                 'access_key': APIFLASH_KEY,
                 'url': SPREADSHEET_URL,
@@ -40,23 +44,33 @@ class ScreenshotService:
                 **self._default_params
             }
 
-            logger.info(f"Getting screenshot with params: {str({k: v for k, v in params.items() if k != 'access_key'})}")
+            logger.info(f"Making APIFlash request for format: {format}, quality: {quality}")
 
             response = requests.get(APIFLASH_URL, params=params)
             if response.status_code != 200:
-                logger.error(f"APIFlash error: {response.text}")
+                logger.error(f"APIFlash error: Status {response.status_code}, Response: {response.text}")
                 raise Exception(f"Failed to get screenshot: {response.status_code}")
 
             logger.info(f"Successfully received {format.upper()} screenshot")
             return response.content
 
+        except ValueError as e:
+            logger.error(f"Validation error: {str(e)}")
+            return None
+        except requests.RequestException as e:
+            logger.error(f"Network error: {str(e)}")
+            return None
         except Exception as e:
-            logger.error(f"Screenshot service error: {str(e)}")
+            logger.error(f"Unexpected error in screenshot service: {str(e)}")
             return None
 
-    def get_format_options(self) -> list:
-        """Возвращает список доступных форматов"""
-        return self.format_options.copy()
+    def get_format_options(self) -> Dict[str, str]:
+        """Возвращает словарь доступных форматов с описаниями"""
+        return {
+            'png': 'PNG - Высокое качество, с прозрачностью',
+            'jpeg': 'JPEG - Компактный размер',
+            'webp': 'WebP - Современный формат'
+        }
 
 ScreenshotService.default_presets = {
     'default': {'clipLimit': 0.8, 'sharpness': 3.4},

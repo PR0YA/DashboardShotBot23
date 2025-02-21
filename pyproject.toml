@@ -20,8 +20,9 @@ dependencies = [
     "pillow>=11.1.0",
     "matplotlib>=3.10.0",
     "psutil>=7.0.0",
-    "python-telegram-bot[job-queue]==20.7",
     "requests>=2.32.3",
     "python-dotenv>=1.0.1",
-    "telegram>=0.0.1",
+    "slack-sdk>=3.34.0",
+    "aiogram>=3.18.0",
+    "binpan>=0.4.15",
 ]
