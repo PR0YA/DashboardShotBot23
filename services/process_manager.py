@@ -24,8 +24,8 @@ class ProcessManager:
 
             logger.info(f"Found {len(bot_processes)} bot processes")
             return bot_processes
-        except ImportError:
-            logger.error("psutil not available")
+        except Exception as e:
+            logger.error(f"Error in get_running_bot_processes: {e}")
             return []
 
     @staticmethod
@@ -34,19 +34,9 @@ class ProcessManager:
         current_pid = os.getpid()
         logger.info(f"Starting cleanup of old processes. Current PID: {current_pid}")
 
-        # Получаем информацию о системных ресурсах
-        virtual_memory = psutil.virtual_memory()
-        cpu_percent = psutil.cpu_percent(interval=1)
-        logger.info(f"System resources - Memory: {virtual_memory.percent}%, CPU: {cpu_percent}%")
-
         try:
-            # Сначала пытаемся удалить все PID файлы
-            if os.path.exists("bot.pid"):
-                try:
-                    os.remove("bot.pid")
-                    logger.info("Removed existing PID file")
-                except Exception as e:
-                    logger.error(f"Error removing PID file: {e}")
+            # Сначала удаляем PID файл если он есть
+            ProcessManager.remove_pid()
 
             # Ищем все процессы бота
             for proc in ProcessManager.get_running_bot_processes():
@@ -54,22 +44,19 @@ class ProcessManager:
                     try:
                         logger.info(f"Attempting to terminate process {proc.pid}")
 
-                        # Сначала пробуем мягкое завершение
+                        # Пробуем мягкое завершение
                         proc.terminate()
                         try:
-                            proc.wait(timeout=5)
+                            proc.wait(timeout=3)
                             logger.info(f"Process {proc.pid} terminated successfully")
                         except psutil.TimeoutExpired:
                             logger.warning(f"Timeout waiting for process {proc.pid} to terminate, using SIGKILL")
                             # Если не удалось завершить мягко, используем SIGKILL
                             os.kill(proc.pid, signal.SIGKILL)
-                            try:
-                                proc.wait(timeout=3)
-                                logger.info(f"Process {proc.pid} killed successfully")
-                            except psutil.TimeoutExpired:
-                                logger.error(f"Failed to kill process {proc.pid}")
+                            proc.wait(timeout=2)
+                            logger.info(f"Process {proc.pid} killed successfully")
 
-                    except psutil.NoSuchProcess:
+                    except (psutil.NoSuchProcess, ProcessLookupError):
                         logger.info(f"Process {proc.pid} already terminated")
                     except Exception as e:
                         logger.error(f"Error handling process {proc.pid}: {e}")
@@ -77,33 +64,6 @@ class ProcessManager:
         except Exception as e:
             logger.error(f"Error in cleanup_old_processes: {e}")
             raise
-
-    @staticmethod
-    def is_bot_running() -> bool:
-        """Проверяет, запущен ли уже бот"""
-        try:
-            current_pid = os.getpid()
-            logger.info(f"Checking if bot is already running... Current PID: {current_pid}")
-
-            running_processes = ProcessManager.get_running_bot_processes()
-            other_processes = [p for p in running_processes if p.pid != current_pid]
-
-            if other_processes:
-                for proc in other_processes:
-                    try:
-                        cmdline = ' '.join(proc.cmdline())
-                        logger.warning(f"Found another bot instance: PID={proc.pid}, CMD={cmdline}")
-                    except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-                        logger.error(f"Error accessing process {proc.pid}: {e}")
-                        continue
-                return True
-
-            logger.info("No other bot instances found")
-            return False
-
-        except Exception as e:
-            logger.error(f"Error in is_bot_running: {e}")
-            return False
 
     @staticmethod
     def save_pid():
@@ -120,7 +80,35 @@ class ProcessManager:
     def remove_pid():
         """Удаляет PID файл"""
         try:
-            os.remove("bot.pid")
-            logger.info("Successfully removed PID file")
+            if os.path.exists("bot.pid"):
+                os.remove("bot.pid")
+                logger.info("Successfully removed PID file")
         except Exception as e:
             logger.error(f"Error removing PID file: {e}")
+
+    @staticmethod
+    def is_bot_running() -> bool:
+        """Проверяет, запущен ли уже бот"""
+        try:
+            current_pid = os.getpid()
+            logger.info(f"Checking if bot is already running... Current PID: {current_pid}")
+
+            # Проверяем существующие процессы
+            running_processes = ProcessManager.get_running_bot_processes()
+            other_processes = [p for p in running_processes if p.pid != current_pid]
+
+            if other_processes:
+                for proc in other_processes:
+                    try:
+                        cmdline = ' '.join(proc.cmdline())
+                        logger.warning(f"Found another bot instance: PID={proc.pid}, CMD={cmdline}")
+                    except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                        logger.error(f"Error accessing process {proc.pid}: {e}")
+                return True
+
+            logger.info("No other bot instances found")
+            return False
+
+        except Exception as e:
+            logger.error(f"Error in is_bot_running: {e}")
+            return False

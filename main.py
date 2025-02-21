@@ -2,10 +2,9 @@ import logging
 import asyncio
 from telegram import Update
 from telegram.ext import (
-    Application,
+    Updater,
     CommandHandler,
-    ContextTypes,
-    filters
+    CallbackContext
 )
 from services.screenshot import ScreenshotService
 from services.error_handler import ErrorHandler
@@ -25,95 +24,67 @@ screenshot_service = ScreenshotService()
 bot_metrics = BotMetrics()
 error_handler = ErrorHandler(bot_metrics)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start(update: Update, context: CallbackContext) -> None:
     """Обработчик команды /start"""
     try:
         await update.message.reply_text(
             "👋 Добро пожаловать в DashboardSJ Bot!\n\n"
             "Я помогу вам создавать качественные скриншоты ваших Google Sheets таблиц "
-            "с возможностью настройки и улучшения изображения.\n\n"
-            "🔹 Используйте /screenshot для создания скриншота\n"
-            "🔹 /help - список всех команд и их описание\n"
-            "🔹 /status - проверка состояния системы"
+            "с расширенными возможностями настройки.\n\n"
+            "🔹 /screenshot - создать скриншот с настройками\n"
+            "🔹 /help - подробная информация о командах"
         )
         logger.info(f"Start command handled for user {update.effective_user.id}")
     except Exception as e:
         error_message = error_handler.handle_error(e, {'update': update, 'command': 'start'})
         await update.message.reply_text(error_message)
 
-async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def help(update: Update, context: CallbackContext) -> None:
     """Обработчик команды /help"""
     try:
         await update.message.reply_text(
-            "📋 Доступные команды:\n\n"
+            "📋 Команды бота:\n\n"
             "🔹 /start - Начать работу с ботом\n"
-            "🔹 /help - Показать список команд и их описание\n"
-            "🔹 /status - Проверить статус системы и производительность\n"
-            "🔹 /screenshot - Сделать скриншот таблицы с настройками:\n"
-            "   • Выбор области скриншота\n"
+            "🔹 /help - Показать это сообщение\n"
+            "🔹 /screenshot - Создать скриншот с настройками:\n"
+            "   • Выбор области таблицы\n"
             "   • Улучшение качества изображения\n"
             "   • Настройка масштаба\n"
-            "   • Выбор пресетов улучшения\n\n"
-            "💡 Для получения наилучшего результата используйте команду /screenshot\n"
-            "с последующим выбором параметров через интерактивное меню"
+            "   • Выбор пресетов обработки"
         )
         logger.info(f"Help command handled for user {update.effective_user.id}")
     except Exception as e:
         error_message = error_handler.handle_error(e, {'update': update, 'command': 'help'})
         await update.message.reply_text(error_message)
 
-async def status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик команды /status"""
-    try:
-        stats = bot_metrics.get_performance_stats()
-        status_message = (
-            "📊 Статус системы\n\n"
-            f"✅ Бот активен и работает\n\n"
-            f"📈 Статистика работы:\n"
-            f"• Обработано команд: {stats['commands']['total_executed']}\n"
-            f"• Успешность выполнения: {stats['commands']['success_rate']}%\n"
-            f"• Среднее время ответа: {stats['commands']['average_time']}с\n\n"
-            f"💻 Системные ресурсы:\n"
-            f"• CPU: {stats['system']['cpu']}%\n"
-            f"• Память: {stats['system']['memory']}%"
-        )
-        await update.message.reply_text(status_message)
-        logger.info(f"Status command handled for user {update.effective_user.id}")
-    except Exception as e:
-        error_message = error_handler.handle_error(e, {'update': update, 'command': 'status'})
-        await update.message.reply_text(error_message)
-
-async def screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def screenshot(update: Update, context: CallbackContext) -> None:
     """Обработчик команды /screenshot"""
     start_time = bot_metrics.start_command_tracking("screenshot")
     try:
         await update.message.reply_text(
             "🔄 Создаю скриншот таблицы...\n"
-            "⏳ Это может занять несколько секунд"
+            "⏳ Пожалуйста, подождите"
         )
 
-        # Получаем скриншот с улучшенным качеством
         screenshot_data = screenshot_service.get_screenshot(
             format='png',
             enhance=True,
             preset='high_contrast'
         )
 
-        # Отправляем файл
         await update.message.reply_document(
             document=screenshot_data,
             filename='screenshot.png',
             caption=(
-                '✅ Ваш скриншот готов!\n\n'
-                '📝 Использованы настройки:\n'
+                '✅ Скриншот готов!\n\n'
+                '📝 Параметры:\n'
                 '• Формат: PNG\n'
                 '• Улучшение качества: Включено\n'
                 '• Пресет: Высокий контраст\n\n'
-                'Используйте /help для просмотра других команд и настроек'
+                'Используйте /help для информации о дополнительных настройках'
             )
         )
 
-        # Завершаем отслеживание
         bot_metrics.end_command_tracking("screenshot", start_time, success=True)
         logger.info(f"Screenshot created for user {update.effective_user.id}")
 
@@ -125,34 +96,36 @@ async def screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         })
         await update.message.reply_text(error_message)
 
-async def main() -> None:
+def main() -> None:
     """Запуск бота"""
     try:
-        # Создаем приложение
-        application = Application.builder().token(TELEGRAM_TOKEN).build()
+        # Очищаем старые процессы
+        ProcessManager.cleanup_old_processes()
+        ProcessManager.remove_pid()
+
+        # Создаем апдейтер
+        updater = Updater(TELEGRAM_TOKEN)
+        dispatcher = updater.dispatcher
 
         # Добавляем обработчики команд
-        application.add_handler(CommandHandler("start", start))
-        application.add_handler(CommandHandler("help", help))
-        application.add_handler(CommandHandler("status", status))
-        application.add_handler(CommandHandler("screenshot", screenshot))
+        dispatcher.add_handler(CommandHandler("start", start))
+        dispatcher.add_handler(CommandHandler("help", help))
+        dispatcher.add_handler(CommandHandler("screenshot", screenshot))
 
         # Запускаем бота
         logger.info("Starting bot...")
-        await application.run_polling(allowed_updates=Update.ALL_TYPES)
+        updater.start_polling()
+        updater.idle()
 
     except Exception as e:
         logger.error(f"Critical error in main: {e}")
         raise
+    finally:
+        ProcessManager.remove_pid()
 
 if __name__ == '__main__':
     try:
-        # Очищаем старые процессы перед запуском
-        ProcessManager.cleanup_old_processes()
-        # Сохраняем PID нового процесса
-        ProcessManager.save_pid()
-        # Запускаем бота
-        asyncio.run(main())
+        main()
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
     except Exception as e:
