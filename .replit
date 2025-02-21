@@ -45,7 +45,7 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PYTHONPATH=/home/runner/workspace python main.py"
+args = "python main.py"
 
 [deployment]
-run = ["sh", "-c", "PYTHONPATH=/home/runner/workspace python main.py"]
+run = ["sh", "-c", "python main.py"]

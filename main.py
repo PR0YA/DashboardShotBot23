@@ -1,11 +1,6 @@
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    CallbackQueryHandler,
-    ContextTypes
-)
+from telegram import Update, Chat, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from services.screenshot import ScreenshotService
 from services.image_enhancer import ImageEnhancer
 from config import TELEGRAM_TOKEN
@@ -56,12 +51,7 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "*Форматы изображений:*\n"
         "• PNG - Высокое качество\n"
         "• JPEG - Компактный размер\n"
-        "• WebP - Современный формат\n\n"
-        "*Улучшение изображения:*\n"
-        "После создания скриншота вы можете:\n"
-        "• Увеличить контрастность\n"
-        "• Повысить резкость\n"
-        "• Применить пресеты обработки",
+        "• WebP - Современный формат",
         parse_mode='MarkdownV2'
     )
 
@@ -90,8 +80,9 @@ async def screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         )
 
         # Получаем скриншот
+        format_type = context.user_data.get('format', 'png')
         screenshot_data = screenshot_service.get_screenshot(
-            format='png',
+            format=format_type,
             quality=100
         )
 
@@ -105,7 +96,7 @@ async def screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             # Отправляем скриншот
             await update.message.reply_document(
                 document=screenshot_data,
-                filename='screenshot.png',
+                filename=f'screenshot.{format_type}',
                 caption=(
                     "✅ *Скриншот готов!*\n\n"
                     "*Параметры:*\n"

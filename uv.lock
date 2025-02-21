@@ -125,6 +125,20 @@ wheels = [
 ]
 
 [[package]]
+name = "apscheduler"
+version = "3.10.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytz" },
+    { name = "six" },
+    { name = "tzlocal" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5e/34/5dcb368cf89f93132d9a31bd3747962a9dc874480e54333b0c09fa7d56ac/APScheduler-3.10.4.tar.gz", hash = "sha256:e6df071b27d9be898e486bc7940a7be50b4af2e9da7c08f0744a96d4bd4cef4a", size = 100832 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/13/b5/7af0cb920a476dccd612fbc9a21a3745fb29b1fcd74636078db8f7ba294c/APScheduler-3.10.4-py3-none-any.whl", hash = "sha256:fb91e8a768632a4756a585f79ec834e0e27aad5860bac7eaa523d9ccefd87661", size = 59303 },
+]
+
+[[package]]
 name = "attrs"
 version = "25.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1218,6 +1232,15 @@ wheels = [
 ]
 
 [[package]]
+name = "python-dotenv"
+version = "1.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/bc/57/e84d88dfe0aec03b7a2d4327012c1627ab5f03652216c63d49846d7a6c58/python-dotenv-1.0.1.tar.gz", hash = "sha256:e324ee90a023d808f1959c46bcbc04446a10ced277783dc6ee09987c37ec10ca", size = 39115 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6a/3e/b68c118422ec867fa7ab88444e1274aa40681c606d59ac27de5a5588f082/python_dotenv-1.0.1-py3-none-any.whl", hash = "sha256:f7b63ef50f1b690dddf550d03497b66d609393b40b564ed0d674909a68ebf16a", size = 19863 },
+]
+
+[[package]]
 name = "python-http-client"
 version = "3.3.7"
 source = { registry = "https://pypi.org/simple" }
@@ -1236,6 +1259,12 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b6/63/80a61afea467e669edd91ca46de6800814227021e8ea040b87995979b52e/python-telegram-bot-20.7.tar.gz", hash = "sha256:4f146c39de5f5e0b3723c2abedaf78046ebd30a6a49d2281ee4b3af5eb116b68", size = 368874 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e7/69/285c31caff09a10ce932711a63835775ed7c503783bd808a837ce803f055/python_telegram_bot-20.7-py3-none-any.whl", hash = "sha256:462326c65671c8c39e76c8c96756ee918be6797d225f8db84d2ec0f883383b8c", size = 552646 },
+]
+
+[package.optional-dependencies]
+job-queue = [
+    { name = "apscheduler" },
+    { name = "pytz" },
 ]
 
 [[package]]
@@ -1318,7 +1347,9 @@ dependencies = [
     { name = "opencv-python-headless" },
     { name = "pillow" },
     { name = "psutil" },
-    { name = "python-telegram-bot" },
+    { name = "python-dotenv" },
+    { name = "python-telegram-bot", extra = ["job-queue"] },
+    { name = "requests" },
     { name = "sendgrid" },
     { name = "telegram" },
     { name = "trafilatura" },
@@ -1340,7 +1371,9 @@ requires-dist = [
     { name = "opencv-python-headless", specifier = ">=4.11.0.86" },
     { name = "pillow", specifier = ">=11.1.0" },
     { name = "psutil", specifier = ">=7.0.0" },
-    { name = "python-telegram-bot", specifier = "==20.7" },
+    { name = "python-dotenv", specifier = ">=1.0.1" },
+    { name = "python-telegram-bot", extras = ["job-queue"], specifier = "==20.7" },
+    { name = "requests", specifier = ">=2.32.3" },
     { name = "sendgrid", specifier = ">=6.11.0" },
     { name = "telegram", specifier = ">=0.0.1" },
     { name = "trafilatura", specifier = ">=2.0.0" },
